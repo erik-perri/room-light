@@ -18,7 +18,59 @@ logger:
 ota:
   - platform: esphome
     password: !secret ota_password
-    
+
+time:
+  - platform: sntp
+    id: home_time
+    timezone: !secret timezone
+
 web_server:
   port: 80
   version: 3
+
+remote_transmitter:
+  id: ir_transmitter
+  pin: 14
+  carrier_duty_percent: 50%
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 12
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Physical Button"
+    on_press:
+      then:
+        - switch.toggle: light_power
+
+switch:
+  - platform: template
+    name: "Power"
+    id: light_power
+    optimistic: true
+    turn_on_action:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0x9C
+    turn_off_action:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0xDD
+
+script:
+  - id: transmit_flipper_nec
+    mode: restart
+    parameters:
+      address: int
+      command: int
+    then:
+      - remote_transmitter.transmit_nec:
+          # 1. Take the input byte (e.g., 0x80)
+          # 2. Calculate the inverse (~0x80 = 0x7F)
+          # 3. Shift inverse to the upper byte (0x7F00)
+          # 4. Combine them (0x7F00 | 0x80 = 0x7F80)
+          address: !lambda 'return ((~address & 0xFF) << 8) | (address & 0xFF);'
+          command: !lambda 'return ((~command & 0xFF) << 8) | (command & 0xFF);'
