@@ -110,6 +110,14 @@ remote_transmitter:
   pin: 14
   carrier_duty_percent: 50%
 
+sensor:
+  - platform: adc
+    pin: A0
+    name: "Brightness Voltage"
+    id: brightness_voltage
+    update_interval: 30s
+    accuracy_decimals: 4
+
 binary_sensor:
   - platform: gpio
     pin:
