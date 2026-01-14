@@ -1,5 +1,12 @@
 esphome:
   name: bedroom-light
+  friendly_name: 'Bedroom Light'
+  on_boot:
+    priority: -10
+    then:
+      - switch.turn_on: light_power
+      - script.execute: reset_to_base
+      - script.execute: set_highest_brightness
 
 esp8266:
   board: huzzah
@@ -44,6 +51,18 @@ binary_sensor:
       then:
         - switch.toggle: light_power
 
+select:
+  - platform: template
+    name: 'Light Temperature Mode'
+    id: light_temperature_select
+    options:
+      - 'Daylight'
+      - 'Warm'
+    optimistic: true
+    initial_option: 'Warm'
+    set_action:
+      - script.execute: transmit_temperature_toggle
+
 switch:
   - platform: template
     name: 'Power'
@@ -60,7 +79,93 @@ switch:
           address: 0x80
           command: 0xDD
 
+button:
+  - platform: template
+    name: Increase brightness
+    icon: mdi:arrow-up-circle
+    id: increase_decrease
+    on_press:
+      - script.execute:
+          id: transmit_brightness_increase
+
+  - platform: template
+    name: Decrease brightness
+    icon: mdi:arrow-down-circle
+    id: brightness_decrease
+    on_press:
+      - script.execute:
+          id: transmit_brightness_decrease
+
+  - platform: template
+    name: Reset to base
+    id: button_reset_to_base
+    on_press:
+      - script.execute:
+          id: reset_to_base
+
+  - platform: template
+    name: Set highest brightness
+    id: button_set_highest_brightness
+    on_press:
+      - script.execute:
+          id: set_highest_brightness
+
 script:
+  - id: reset_to_base
+    then:
+      - script.execute:
+          id: set_lowest_brightness
+      # After a color change, a temperature toggle always sets to warm.
+      - script.execute:
+          id: transmit_red_toggle
+      - select.set:
+          id: light_temperature_select
+          option: 'Warm'
+
+  - id: set_lowest_brightness
+    then:
+      - repeat:
+          count: 4
+          then:
+            - script.execute:
+                id: transmit_brightness_decrease
+
+  - id: set_highest_brightness
+    then:
+      - repeat:
+          count: 4
+          then:
+            - script.execute:
+                id: transmit_brightness_increase
+
+  - id: transmit_brightness_decrease
+    then:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0x80
+
+  - id: transmit_brightness_increase
+    then:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0x82
+
+  - id: transmit_red_toggle
+    then:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0x01
+
+  - id: transmit_temperature_toggle
+    then:
+      - script.execute:
+          id: transmit_flipper_nec
+          address: 0x80
+          command: 0x86
+
   - id: transmit_flipper_nec
     mode: restart
     parameters:
