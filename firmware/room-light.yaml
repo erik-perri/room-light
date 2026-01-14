@@ -20,6 +20,10 @@ wifi:
     ssid: 'Bedroom Light Fallback Hotspot'
     password: !secret ap_fallback_password
 
+api:
+  encryption:
+    key: !secret api_encryption_key
+
 logger:
 
 ota:
