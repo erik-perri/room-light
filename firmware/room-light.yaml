@@ -34,6 +34,72 @@ time:
   - platform: sntp
     id: home_time
     timezone: !secret timezone
+    on_time:
+      - hours: 5
+        minutes: 30
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0530
+
+      - hours: 6
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0600
+
+      - hours: 7
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0700
+
+      - hours: 7
+        minutes: 30
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0730
+
+      - hours: 8
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0800
+
+      - hours: 19
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_1900
+
+      - hours: 20
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_2000
+
+      - hours: 21
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_2100
+
+      - hours: 22
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_2200
+
+      - hours: 22
+        minutes: 30
+        seconds: 0
+        then:
+          - script.execute: handle_interval_2230
+
+      - hours: 23
+        minutes: 00
+        seconds: 0
+        then:
+          - script.execute: handle_interval_2300
 
 web_server:
   port: 80
@@ -115,6 +181,56 @@ button:
           id: set_highest_brightness
 
 script:
+  - id: handle_interval_0530
+    then:
+      - switch.turn_on: light_power
+      - script.execute: reset_to_base
+
+  - id: handle_interval_0600
+    then:
+      - script.execute: transmit_brightness_increase
+
+  - id: handle_interval_0700
+    then:
+      - script.execute: transmit_brightness_increase
+
+  - id: handle_interval_0730
+    then:
+      - script.execute: transmit_brightness_increase
+
+  - id: handle_interval_0800
+    then:
+      - script.execute: transmit_brightness_increase
+      - select.set:
+          id: light_temperature_select
+          option: 'Daylight'
+
+  - id: handle_interval_1900
+    then:
+      - select.set:
+          id: light_temperature_select
+          option: 'Warm'
+
+  - id: handle_interval_2000
+    then:
+      - script.execute: transmit_brightness_decrease
+
+  - id: handle_interval_2100
+    then:
+      - script.execute: transmit_brightness_decrease
+
+  - id: handle_interval_2200
+    then:
+      - script.execute: transmit_brightness_decrease
+
+  - id: handle_interval_2230
+    then:
+      - script.execute: transmit_brightness_decrease
+
+  - id: handle_interval_2300
+    then:
+      - switch.turn_off: light_power
+
   - id: reset_to_base
     then:
       - script.execute:
