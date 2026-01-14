@@ -8,7 +8,7 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   min_auth_mode: 'WPA2'
-
+  fast_connect: true
   ap:
     ssid: 'Bedroom Light Fallback Hotspot'
     password: !secret ap_fallback_password
