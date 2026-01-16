@@ -1,12 +1,15 @@
 esphome:
   name: room-light
   friendly_name: 'Room Light'
-# on_boot:
-#   priority: -10
-#   then:
-#     - switch.turn_on: light_power
-#     - script.execute: reset_to_base
-#     - script.execute: set_highest_brightness
+  includes:
+    - light_schedule.h
+  on_boot:
+    priority: -10
+    then:
+      - wait_until:
+          condition:
+            lambda: 'return id(home_time).now().is_valid();'
+      - script.execute: full_reset_and_sync
 
 esp8266:
   board: huzzah
@@ -32,82 +35,20 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+globals:
+  - id: current_level
+    type: int
+    initial_value: '0'
+
 time:
   - platform: sntp
     id: home_time
     timezone: !secret timezone
     on_time:
-      - hours: 5
-        minutes: 30
-        seconds: 0
+      - seconds: '00'
+        minutes: '0/10'
         then:
-          - script.execute: handle_interval_0530
-
-      - hours: 6
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_0600
-
-      - hours: 7
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_0700
-
-      - hours: 7
-        minutes: 30
-        seconds: 0
-        then:
-          - script.execute: handle_interval_0730
-
-      - hours: 8
-        minutes: 30
-        seconds: 0
-        then:
-          - script.execute: handle_interval_0830
-
-      - hours: 9
-        minutes: 30
-        seconds: 0
-        then:
-          - script.execute: handle_interval_0930
-
-      - hours: 19
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_1900
-
-      - hours: 20
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_2000
-
-      - hours: 21
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_2100
-
-      - hours: 22
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_2200
-
-      - hours: 22
-        minutes: 30
-        seconds: 0
-        then:
-          - script.execute: handle_interval_2230
-
-      - hours: 23
-        minutes: 00
-        seconds: 0
-        then:
-          - script.execute: handle_interval_2300
+          - script.execute: apply_schedule_logic
 
 web_server:
   port: 80
@@ -167,6 +108,18 @@ switch:
 
 button:
   - platform: template
+    name: Reset to base
+    id: button_reset_to_base
+    on_press:
+      - script.execute:
+          id: reset_to_base
+
+  - platform: template
+    name: Sync to schedule
+    on_press:
+      - script.execute: full_reset_and_sync
+
+  - platform: template
     name: Increase brightness
     icon: mdi:arrow-up-circle
     id: increase_decrease
@@ -183,13 +136,6 @@ button:
           id: transmit_brightness_decrease
 
   - platform: template
-    name: Reset to base
-    id: button_reset_to_base
-    on_press:
-      - script.execute:
-          id: reset_to_base
-
-  - platform: template
     name: Set highest brightness
     id: button_set_highest_brightness
     on_press:
@@ -197,71 +143,82 @@ button:
           id: set_highest_brightness
 
 script:
-  - id: handle_interval_0530
+  - id: apply_schedule_logic
+    then:
+      - lambda: |-
+          auto time = id(home_time).now();
+          LightState target = get_target_state(time.hour, time.minute);
+
+          if (target.power != id(light_power).state) {
+              if (target.power) {
+                  id(light_power).turn_on();
+              } else {
+                  id(light_power).turn_off();
+                  return; 
+              }
+          }
+
+          if (!target.power) {
+              return;
+          }
+
+          bool current_is_daylight = (std::string(id(light_temperature_select).current_option()) == "Daylight");
+
+          if (target.is_daylight != current_is_daylight) {
+              auto call = id(light_temperature_select).make_call();
+              call.set_option(target.is_daylight ? "Daylight" : "Warm");
+              call.perform();
+          }
+
+          int diff = target.level - id(current_level);
+          
+          if (diff > 0) {
+              id(repeat_increase).execute(diff);
+              id(current_level) = target.level;
+          } else if (diff < 0) {
+              id(repeat_decrease).execute(abs(diff));
+              id(current_level) = target.level;
+          }
+
+  - id: repeat_increase
+    mode: queued
+    parameters:
+      count: int
+    then:
+      - repeat:
+          count: !lambda 'return count;'
+          then:
+            - script.execute: transmit_brightness_increase
+
+  - id: repeat_decrease
+    mode: queued
+    parameters:
+      count: int
+    then:
+      - repeat:
+          count: !lambda 'return count;'
+          then:
+            - script.execute: transmit_brightness_decrease
+
+  - id: full_reset_and_sync
     then:
       - switch.turn_on: light_power
       - script.execute: reset_to_base
-
-  - id: handle_interval_0600
-    then:
-      - script.execute: transmit_brightness_increase
-
-  - id: handle_interval_0700
-    then:
-      - script.execute: transmit_brightness_increase
-
-  - id: handle_interval_0730
-    then:
-      - script.execute: transmit_brightness_increase
-
-  - id: handle_interval_0830
-    then:
-      - script.execute: transmit_brightness_increase
-      - select.set:
-          id: light_temperature_select
-          option: 'Daylight'
-
-  - id: handle_interval_0930
-    then:
-      - switch.turn_on: light_power
-
-  - id: handle_interval_1900
-    then:
-      - switch.turn_on: light_power
-      - select.set:
-          id: light_temperature_select
-          option: 'Warm'
-
-  - id: handle_interval_2000
-    then:
-      - script.execute: transmit_brightness_decrease
-
-  - id: handle_interval_2100
-    then:
-      - script.execute: transmit_brightness_decrease
-
-  - id: handle_interval_2200
-    then:
-      - script.execute: transmit_brightness_decrease
-
-  - id: handle_interval_2230
-    then:
-      - script.execute: transmit_brightness_decrease
-
-  - id: handle_interval_2300
-    then:
-      - switch.turn_off: light_power
+      - globals.set:
+          id: current_level
+          value: '0'
+      - script.execute: apply_schedule_logic
 
   - id: reset_to_base
     then:
-      - script.execute:
-          id: set_lowest_brightness
-      # After a color change, a temperature toggle always sets to warm.
-      - script.execute:
-          id: transmit_red_toggle
+      - script.execute: set_lowest_brightness
+      - script.execute: transmit_red_toggle
       - select.set:
           id: light_temperature_select
           option: 'Warm'
+      - globals.set:
+          id: current_level
+          value: '0'
 
   - id: set_lowest_brightness
     then:
