@@ -40,10 +40,16 @@ time:
     id: home_time
     timezone: !secret timezone
     on_time:
-      - seconds: '00'
-        minutes: '0/10'
+      - seconds: 0
+        minutes: '*'
         then:
-          - script.execute: apply_schedule_logic
+          - if:
+              condition:
+                lambda: |-
+                  auto time = id(home_time).now();
+                  return is_schedule_breakpoint(time.hour, time.minute);
+              then:
+                - script.execute: apply_schedule_logic
 
 web_server:
   port: 80

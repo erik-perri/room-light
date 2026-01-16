@@ -16,9 +16,6 @@ struct ScheduleEntry {
 
 // This must be sorted by time (00:00 -> 23:00)
 const std::vector<ScheduleEntry> SCHEDULE = {
-    // Midnight -> 5:29 -> OFF
-    {  0, 00, {0, false, false} },
-
     // 05:30 -> Turn ON, Level 0 (Base), Warm
     {  5, 30, {0, false, true} },
 
@@ -75,4 +72,13 @@ LightState get_target_state(int current_hour, int current_minute) {
     }
 
     return target;
+}
+
+bool is_schedule_breakpoint(int current_hour, int current_minute) {
+    for (const auto& entry : SCHEDULE) {
+        if (entry.hour == current_hour && entry.minute == current_minute) {
+            return true;
+        }
+    }
+    return false;
 }
