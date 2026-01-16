@@ -34,6 +34,9 @@ const std::vector<ScheduleEntry> SCHEDULE = {
     // 09:30 -> Turn OFF
     {  9, 30, {4, true,  false} },
 
+    // 16:00 -> Level 4, Daylight
+    { 16, 00, {4, true,  true} },
+
     // 19:00 -> Level 4, Warm
     { 19, 00, {4, false, true} },
 
