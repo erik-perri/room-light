@@ -35,11 +35,6 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
-globals:
-  - id: current_level
-    type: int
-    initial_value: '0'
-
 time:
   - platform: sntp
     id: home_time
@@ -62,7 +57,7 @@ remote_transmitter:
 sensor:
   - platform: adc
     pin: A0
-    name: "Brightness Voltage"
+    name: 'Brightness Voltage'
     id: brightness_voltage
     update_interval: 30s
     accuracy_decimals: 4
@@ -73,7 +68,7 @@ binary_sensor:
       number: 12
       mode: INPUT_PULLUP
       inverted: true
-    name: 'Physical Button'
+    name: 'Physical Button State'
     on_press:
       then:
         - switch.toggle: light_power
@@ -89,6 +84,26 @@ select:
     initial_option: 'Warm'
     set_action:
       - script.execute: transmit_temperature_toggle
+
+number:
+  - platform: template
+    name: "Brightness Level"
+    id: brightness_level
+    min_value: 0
+    max_value: 4
+    step: 1
+    initial_value: 0
+    optimistic: false
+    set_action:
+      then:
+        - lambda: |-
+            int diff = x - id(brightness_level).state;
+            if (diff > 0) {
+                id(repeat_increase).execute(diff);
+            } else if (diff < 0) {
+                id(repeat_decrease).execute(abs(diff));
+            }
+            id(brightness_level).publish_state(x);
 
 switch:
   - platform: template
@@ -108,39 +123,16 @@ switch:
 
 button:
   - platform: template
-    name: Reset to base
+    name: 'Reset to Base'
     id: button_reset_to_base
     on_press:
       - script.execute:
           id: reset_to_base
 
   - platform: template
-    name: Sync to schedule
+    name: 'Sync to Schedule'
     on_press:
       - script.execute: full_reset_and_sync
-
-  - platform: template
-    name: Increase brightness
-    icon: mdi:arrow-up-circle
-    id: increase_decrease
-    on_press:
-      - script.execute:
-          id: transmit_brightness_increase
-
-  - platform: template
-    name: Decrease brightness
-    icon: mdi:arrow-down-circle
-    id: brightness_decrease
-    on_press:
-      - script.execute:
-          id: transmit_brightness_decrease
-
-  - platform: template
-    name: Set highest brightness
-    id: button_set_highest_brightness
-    on_press:
-      - script.execute:
-          id: set_highest_brightness
 
 script:
   - id: apply_schedule_logic
@@ -170,15 +162,9 @@ script:
               call.perform();
           }
 
-          int diff = target.level - id(current_level);
-          
-          if (diff > 0) {
-              id(repeat_increase).execute(diff);
-              id(current_level) = target.level;
-          } else if (diff < 0) {
-              id(repeat_decrease).execute(abs(diff));
-              id(current_level) = target.level;
-          }
+          auto num_call = id(brightness_level).make_call();
+          num_call.set_value(target.level);
+          num_call.perform();
 
   - id: repeat_increase
     mode: queued
@@ -204,9 +190,6 @@ script:
     then:
       - switch.turn_on: light_power
       - script.execute: reset_to_base
-      - globals.set:
-          id: current_level
-          value: '0'
       - script.execute: apply_schedule_logic
 
   - id: reset_to_base
@@ -216,9 +199,7 @@ script:
       - select.set:
           id: light_temperature_select
           option: 'Warm'
-      - globals.set:
-          id: current_level
-          value: '0'
+      - lambda: 'id(brightness_level).publish_state(0);'
 
   - id: set_lowest_brightness
     then:
