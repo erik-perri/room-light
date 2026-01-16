@@ -62,10 +62,16 @@ time:
           - script.execute: handle_interval_0730
 
       - hours: 8
-        minutes: 00
+        minutes: 30
         seconds: 0
         then:
-          - script.execute: handle_interval_0800
+          - script.execute: handle_interval_0830
+
+      - hours: 9
+        minutes: 30
+        seconds: 0
+        then:
+          - script.execute: handle_interval_0930
 
       - hours: 19
         minutes: 00
@@ -208,15 +214,20 @@ script:
     then:
       - script.execute: transmit_brightness_increase
 
-  - id: handle_interval_0800
+  - id: handle_interval_0830
     then:
       - script.execute: transmit_brightness_increase
       - select.set:
           id: light_temperature_select
           option: 'Daylight'
 
+  - id: handle_interval_0930
+    then:
+      - switch.turn_on: light_power
+
   - id: handle_interval_1900
     then:
+      - switch.turn_on: light_power
       - select.set:
           id: light_temperature_select
           option: 'Warm'
