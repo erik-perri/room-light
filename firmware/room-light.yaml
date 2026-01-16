@@ -93,11 +93,23 @@ select:
     optimistic: true
     initial_option: 'Warm'
     set_action:
-      - script.execute: transmit_temperature_toggle
+      - if:
+          condition:
+            switch.is_on: light_power
+          then:
+            - script.execute: transmit_temperature_toggle
+          else:
+            - lambda: |-
+                std::string restore = (x == "Daylight") ? "Warm" : "Daylight";
+                ESP_LOGD("light", "Temperature mode set to '%s' while power is off. Reverting to '%s'.", x.c_str(), restore.c_str());
+                
+                // Send the temperature change, then revert it. If we only send the revert the web UI does not update properly.
+                id(light_temperature_select).publish_state(x);
+                id(light_temperature_select).publish_state(restore);
 
 number:
   - platform: template
-    name: "Brightness Level"
+    name: 'Brightness Level'
     id: brightness_level
     min_value: 0
     max_value: 4
@@ -106,14 +118,26 @@ number:
     optimistic: false
     set_action:
       then:
-        - lambda: |-
-            int diff = x - id(brightness_level).state;
-            if (diff > 0) {
-                id(repeat_increase).execute(diff);
-            } else if (diff < 0) {
-                id(repeat_decrease).execute(abs(diff));
-            }
-            id(brightness_level).publish_state(x);
+        - if:
+            condition:
+              switch.is_on: light_power
+            then:
+              - lambda: |-
+                  int diff = x - id(brightness_level).state;
+                  if (diff > 0) {
+                      id(repeat_increase).execute(diff);
+                  } else if (diff < 0) {
+                      id(repeat_decrease).execute(abs(diff));
+                  }
+                  id(brightness_level).publish_state(x);
+            else:
+              - lambda: |-
+                  float restore = id(brightness_level).state;
+                  ESP_LOGD("light", "Brightness level set to '%f' while power is off. Reverting to '%f'.", x, restore);
+                
+                  // Send the brightness change, then revert it. If we only send the revert the web UI does not update properly.
+                  id(brightness_level).publish_state(x);
+                  id(brightness_level).publish_state(restore);
 
 switch:
   - platform: template
@@ -140,16 +164,21 @@ button:
           id: reset_to_base
 
   - platform: template
-    name: 'Sync to Schedule'
+    name: 'Reset and Sync to Schedule'
     on_press:
       - script.execute: full_reset_and_sync
+
+  - platform: template
+    name: 'Sync to Schedule'
+    on_press:
+      - script.execute: apply_schedule_logic
 
 script:
   - id: apply_schedule_logic
     then:
       - lambda: |-
           auto time = id(home_time).now();
-          LightState target = get_target_state(time.hour, time.minute);
+          auto target = get_target_state(time.hour, time.minute);
 
           if (target.power != id(light_power).state) {
               if (target.power) {
@@ -164,11 +193,12 @@ script:
               return;
           }
 
-          bool current_is_daylight = (std::string(id(light_temperature_select).current_option()) == "Daylight");
+          auto current_option = std::string(id(light_temperature_select).current_option());
+          auto target_option = target.is_daylight ? "Daylight" : "Warm";
 
-          if (target.is_daylight != current_is_daylight) {
+          if (current_option != target_option) {
               auto call = id(light_temperature_select).make_call();
-              call.set_option(target.is_daylight ? "Daylight" : "Warm");
+              call.set_option(target_option);
               call.perform();
           }
 
