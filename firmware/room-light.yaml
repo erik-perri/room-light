@@ -59,8 +59,12 @@ sensor:
     pin: A0
     name: 'Brightness Voltage'
     id: brightness_voltage
-    update_interval: 30s
+    unit_of_measurement: V
     accuracy_decimals: 4
+    update_interval: 5s
+    filters:
+      - sliding_window_moving_average:
+          window_size: 3
 
 binary_sensor:
   - platform: gpio
